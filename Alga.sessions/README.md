@@ -95,9 +95,11 @@ if (session.Check(value))
 
 7. **Delete session**
 
+```
 app.MapPost($"{UR_Auth}/Signout", (HttpContext context, Alga.sessions.Simple sessionProvider) => { 
     var head = Context.Request.Headers["AlgaSession"].ToString();
     var idF = sessionProvider.Delete(head);
     if (!idF) return Results.BadRequest();
     return Results.Ok();
 });
+```
