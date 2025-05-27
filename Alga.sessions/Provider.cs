@@ -15,7 +15,7 @@ public class Provider
         _Config = config ?? new ();
         SessionTokenHalfLength = _Config.SessionIdLength / 2;
 
-        EngineWhileAsync();
+        _ = EngineWhileAsync();
     }
     public bool Check(string serializedJsonSession) {
         try {

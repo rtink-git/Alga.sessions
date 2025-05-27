@@ -13,10 +13,11 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Alga.sessions")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b78cd988369342a911d2d374b2c06058f3fc67ab")]
-[assembly: System.Reflection.AssemblyProductAttribute("Alga.sessions")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4be3611738a9177c171ad1d86a23929d5413305f")]
+[assembly: System.Reflection.AssemblyProductAttribute("sessions")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Alga.sessions")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
+[assembly: System.Reflection.AssemblyMetadataAttribute("RepositoryUrl", "https://github.com/rtink-git/Alga.sesssions")]
 
 // Создано классом WriteCodeFragment MSBuild.
 

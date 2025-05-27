@@ -4,10 +4,23 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageId>Alga.sessions</PackageId>
+    <Version>1.0.0</Version>
+    <Author>rtink.git@gmail.com</Author>
+    <Product>sessions</Product>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/rtink-git/Alga.sesssions</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.0" />
+    <Compile Include="readme.txt" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="">
+        <Link>README.md</Link>
+    </None>
+  </ItemGroup>
 </Project>
