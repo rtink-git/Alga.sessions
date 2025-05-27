@@ -1,0 +1,12 @@
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Debug/net9.0/publish/Alga.sessions.dll
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Debug/net9.0/publish/Alga.sessions.deps.json
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Debug/net9.0/publish/Alga.sessions.pdb
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Debug/net9.0/publish/Microsoft.AspNetCore.Http.dll
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Debug/net9.0/publish/Microsoft.AspNetCore.Http.Abstractions.dll
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Debug/net9.0/publish/Microsoft.AspNetCore.Http.Features.dll
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Debug/net9.0/publish/Microsoft.AspNetCore.WebUtilities.dll
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Debug/net9.0/publish/Microsoft.Extensions.DependencyInjection.Abstractions.dll
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Debug/net9.0/publish/Microsoft.Extensions.ObjectPool.dll
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Debug/net9.0/publish/Microsoft.Extensions.Options.dll
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Debug/net9.0/publish/Microsoft.Extensions.Primitives.dll
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Debug/net9.0/publish/Microsoft.Net.Http.Headers.dll

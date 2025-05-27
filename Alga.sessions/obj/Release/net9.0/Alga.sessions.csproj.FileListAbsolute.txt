@@ -1,0 +1,12 @@
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Release/net9.0/Alga.sessions.deps.json
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Release/net9.0/Alga.sessions.dll
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Release/net9.0/Alga.sessions.pdb
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/obj/Release/net9.0/Alga.sessions.csproj.AssemblyReference.cache
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/obj/Release/net9.0/Alga.sessions.GeneratedMSBuildEditorConfig.editorconfig
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/obj/Release/net9.0/Alga.sessions.AssemblyInfoInputs.cache
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/obj/Release/net9.0/Alga.sessions.AssemblyInfo.cs
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/obj/Release/net9.0/Alga.sessions.csproj.CoreCompileInputs.cache
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/obj/Release/net9.0/Alga.sessions.dll
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/obj/Release/net9.0/refint/Alga.sessions.dll
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/obj/Release/net9.0/Alga.sessions.pdb
+/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/obj/Release/net9.0/ref/Alga.sessions.dll
