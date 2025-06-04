@@ -14,6 +14,7 @@ A lightweight .NET library for streamlined session management: Create, Refresh, 
     "AlgaSessionsConfig": {
         "SessionIdLength": 32, 
         "SessionTokenLength": 128,
+        "SessionRefreshIntervalInMin": 5 
         "SessionLifetimeInMin": 5040,
         "SessionMaxNumberOfErrors": 10000000,
         "StorageDirectoryPath": "C:\\",
@@ -24,6 +25,7 @@ A lightweight .NET library for streamlined session management: Create, Refresh, 
 
 **SessionIdLength** - Session's id length. Default is 32
 **SessionTokenLength** - Session's token length. Default is 128
+**SessionRefreshIntervalInMin** - Interval in minutes at which the session is proactively refreshed to extend its lifetime. This does not affect the maximum session lifetime. Default is 0 minutes.
 **SessionLifetimeInMin** - Session's life time in min, if there was no refresh. Default is 10080 (7 day)
 **SessionMaxNumberOfErrors** - Max error number. If the number of variables under the current key exceeds this number, the session will be deleted from memory immediately
 **StorageDirectoryPath** - Path to the folder where your sessions will be stored for a long time. Optional parameter
@@ -103,3 +105,9 @@ app.MapPost($"{UR_Auth}/Signout", (HttpContext context, Alga.sessions.Simple ses
     return Results.Ok();
 });
 ```
+
+### Upates
+
+What has been changed in new build (1.1.0) compared to the previous version (1.0.1)
+
+- Added: Defines the interval (in minutes) at which the session is proactively refreshed to extend its lifetime. This does not affect the maximum session lifetime. Default: 0 minutes.

@@ -8,12 +8,12 @@ public class Provider
 {
     protected readonly ConcurrentDictionary<string, Models.ValueModel> List = new();
 
-    public readonly Models.Config _Config;
+    public readonly Models.Config Config;
     readonly int SessionTokenHalfLength;
     public Provider(Models.Config? config)
     {
-        _Config = config ?? new ();
-        SessionTokenHalfLength = _Config.SessionIdLength / 2;
+        Config = config ?? new ();
+        SessionTokenHalfLength = Config.SessionIdLength / 2;
 
         _ = EngineWhileAsync();
     }
@@ -45,8 +45,8 @@ public class Provider
 
             if (clientModel == null) return null;
 
-            var id = Helpers.GenerateSecureRandomString(_Config.SessionIdLength);
-            var token = Helpers.GenerateSecureRandomString(_Config.SessionTokenLength);
+            var id = Helpers.GenerateSecureRandomString(Config.SessionIdLength);
+            var token = Helpers.GenerateSecureRandomString(Config.SessionTokenLength);
 
             clientModel["token"] = _GetClientToken(id, token);
 
@@ -99,17 +99,20 @@ public class Provider
             var kt = _ConvertClientTokenToServerIdAndToken(clientToken);
 
             if (kt != null && List.TryGetValue(kt.Value.Id, out var val))
-                if (val.Token == kt.Value.Token)
-                    if (!_IsOutdate(val) && val.ToLog != 2)
-                    {
-                        val.Token = Helpers.GenerateSecureRandomString(_Config.SessionTokenLength);
-                        val.Dt = DateTime.UtcNow;
-                        val.ToLog = 1;
-                        sp["token"] = _GetClientToken(kt.Value.Id, val.Token);
-                        return JsonSerializer.Serialize(sp);
-                    }
-                    else val.ToLog = 2;
-                else _TryKill(val, clientToken);
+                if (DateTime.UtcNow > val.Dt.AddMinutes(Config.SessionRefreshIntervalInMin))
+                    if (val.Token == kt.Value.Token)
+                        if (!_IsOutdate(val) && val.ToLog != 2)
+                        {
+                            val.Token = Helpers.GenerateSecureRandomString(Config.SessionTokenLength);
+                            val.Dt = DateTime.UtcNow;
+                            val.ToLog = 1;
+                            sp["token"] = _GetClientToken(kt.Value.Id, val.Token);
+                            return JsonSerializer.Serialize(sp);
+                        }
+                        else val.ToLog = 2;
+                    else _TryKill(val, clientToken);
+                else
+                    return serializedJsonSession;
 
             return null;
         }
@@ -121,11 +124,11 @@ public class Provider
     async Task EngineWhileAsync() {
         try {
             string? storageFilePath = null;
-            var delToken = Helpers.GenerateZeroString(_Config.SessionTokenLength);
+            var delToken = Helpers.GenerateZeroString(Config.SessionTokenLength);
 
-            if (Directory.Exists(_Config.StorageDirectoryPath))
+            if (Directory.Exists(Config.StorageDirectoryPath))
             {
-                var logsFileSubPath = Path.Combine(_Config.StorageDirectoryPath, $"alga.sessions.logs_{_Config.SessionIdLength}_{_Config.SessionTokenLength}.dat");
+                var logsFileSubPath = Path.Combine(Config.StorageDirectoryPath, $"alga.sessions.logs_{Config.SessionIdLength}_{Config.SessionTokenLength}.dat");
 
                 if (File.Exists(logsFileSubPath)) storageFilePath = logsFileSubPath;
                 else
@@ -140,7 +143,7 @@ public class Provider
 
                     using var fs = new FileStream(storageFilePath, FileMode.Open, FileAccess.Read);
 
-                    var blockSize = _Config.SessionIdLength + _Config.SessionTokenLength;
+                    var blockSize = Config.SessionIdLength + Config.SessionTokenLength;
 
                     long position = fs.Length;
 
@@ -162,11 +165,11 @@ public class Provider
                         }
 
                         var block = Encoding.UTF8.GetString(buffer);
-                        if (_Config.StorageEncryptionKey != null)
-                            block = Helpers.XorEncryptDecrypt(block, _Config.StorageEncryptionKey);
+                        if (Config.StorageEncryptionKey != null)
+                            block = Helpers.XorEncryptDecrypt(block, Config.StorageEncryptionKey);
 
-                        string key = block.Substring(0, _Config.SessionIdLength);
-                        string token = block.Substring(_Config.SessionIdLength);
+                        string key = block.Substring(0, Config.SessionIdLength);
+                        string token = block.Substring(Config.SessionIdLength);
 
                         if (token != delToken) List.TryAdd(key, new() { Token = token });
                         else delList.Add(key);
@@ -201,8 +204,8 @@ public class Provider
                             else if (i.Value.ToLog == 2) i.Value.Token = delToken;
 
                             var block = $"{i.Key}{i.Value.Token}";
-                            if (_Config.StorageEncryptionKey != null)
-                                block = Helpers.XorEncryptDecrypt(block, _Config.StorageEncryptionKey);
+                            if (Config.StorageEncryptionKey != null)
+                                block = Helpers.XorEncryptDecrypt(block, Config.StorageEncryptionKey);
                             writer.Write(block);
                         }
                 }
@@ -235,8 +238,8 @@ public class Provider
         {
             if (string.IsNullOrEmpty(tokenClient)) return null;
 
-            var key = tokenClient.Substring(0, _Config.SessionIdLength);
-            var token = tokenClient.Substring(_Config.SessionIdLength, _Config.SessionTokenLength);
+            var key = tokenClient.Substring(0, Config.SessionIdLength);
+            var token = tokenClient.Substring(Config.SessionIdLength, Config.SessionTokenLength);
             return (key, token);
         }
         catch { return null; }
@@ -244,14 +247,14 @@ public class Provider
 
     Dictionary<string, object>? _DeserializedJsonSession(string serializedJsonSession) => JsonSerializer.Deserialize<Dictionary<string, object>>(serializedJsonSession);
 
-    bool _IsOutdate(Models.ValueModel value) => DateTime.UtcNow > value.Dt.AddMinutes(_Config.SessionLifetimeInMin) || value.NumberOfErrors > _Config.SessionMaxNumberOfErrors ? true : false;
+    bool _IsOutdate(Models.ValueModel value) => DateTime.UtcNow > value.Dt.AddMinutes(Config.SessionLifetimeInMin) || value.NumberOfErrors > Config.SessionMaxNumberOfErrors ? true : false;
 
     string _GetClientToken(string id, string token)
     {
         if (id == string.Empty || token == string.Empty) return string.Empty;
 
         var random = new Random();
-        var length = random.Next(10, _Config.SessionTokenLength);
+        var length = random.Next(10, Config.SessionTokenLength);
         var tksub = Helpers.GenerateSecureRandomString(length);
 
         return $"{id}{token}{tksub}";
@@ -261,7 +264,7 @@ public class Provider
     {
         try
         {
-            if (tokenClient.Length != _Config.SessionIdLength + _Config.SessionTokenLength) return false;
+            if (tokenClient.Length != Config.SessionIdLength + Config.SessionTokenLength) return false;
 
             var kt = _ConvertClientTokenToServerIdAndToken(tokenClient);
 
@@ -276,14 +279,14 @@ public class Provider
             if (!f)
             {
                 var smlOne = 0;
-                for (int i = _Config.SessionTokenLength; i >= SessionTokenHalfLength; i--) if (value.Token[i] == kt.Value.Token[i]) smlOne++;
+                for (int i = Config.SessionTokenLength; i >= SessionTokenHalfLength; i--) if (value.Token[i] == kt.Value.Token[i]) smlOne++;
                 if (sml == SessionTokenHalfLength) f = true;
             }
 
             if (!f)
             {
                 var smlTwo = 0;
-                for (int i = 0; i < _Config.SessionTokenLength; i += 2) if (value.Token[i] == kt.Value.Token[i]) smlTwo++;
+                for (int i = 0; i < Config.SessionTokenLength; i += 2) if (value.Token[i] == kt.Value.Token[i]) smlTwo++;
                 if (sml == SessionTokenHalfLength) f = true;
             }
 
