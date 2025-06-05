@@ -99,8 +99,8 @@ public class Provider
             var kt = _ConvertClientTokenToServerIdAndToken(clientToken);
 
             if (kt != null && List.TryGetValue(kt.Value.Id, out var val))
-                if (DateTime.UtcNow > val.Dt.AddMinutes(Config.SessionRefreshIntervalInMin))
-                    if (val.Token == kt.Value.Token)
+                if (val.Token == kt.Value.Token)
+                    if (DateTime.UtcNow > val.Dt.AddMinutes(Config.SessionRefreshIntervalInMin))
                         if (!_IsOutdate(val) && val.ToLog != 2)
                         {
                             val.Token = Helpers.GenerateSecureRandomString(Config.SessionTokenLength);
@@ -110,9 +110,8 @@ public class Provider
                             return JsonSerializer.Serialize(sp);
                         }
                         else val.ToLog = 2;
-                    else _TryKill(val, clientToken);
-                else
-                    return serializedJsonSession;
+                    else return serializedJsonSession;
+                else _TryKill(val, clientToken);
 
             return null;
         }
