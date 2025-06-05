@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 
 namespace Alga.sessions;
-
 public class Provider
 {
     protected readonly ConcurrentDictionary<string, Models.ValueModel> List = new();
@@ -100,17 +100,16 @@ public class Provider
 
             if (kt != null && List.TryGetValue(kt.Value.Id, out var val))
                 if (val.Token == kt.Value.Token)
-                    if (DateTime.UtcNow > val.Dt.AddMinutes(Config.SessionRefreshIntervalInMin))
-                        if (!_IsOutdate(val) && val.ToLog != 2)
+                    if (!_IsOutdate(val) && val.ToLog != 2)
+                        if (DateTime.UtcNow > val.Dt.AddMinutes(Config.SessionRefreshIntervalInMin))
                         {
                             val.Token = Helpers.GenerateSecureRandomString(Config.SessionTokenLength);
                             val.Dt = DateTime.UtcNow;
                             val.ToLog = 1;
                             sp["token"] = _GetClientToken(kt.Value.Id, val.Token);
                             return JsonSerializer.Serialize(sp);
-                        }
-                        else val.ToLog = 2;
-                    else return serializedJsonSession;
+                        } else return serializedJsonSession;
+                    else val.ToLog = 2;
                 else _TryKill(val, clientToken);
 
             return null;
