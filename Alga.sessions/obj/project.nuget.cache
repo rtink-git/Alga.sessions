@@ -1,8 +1,11 @@
 {
   "version": 2,
-  "dgSpecHash": "qP3aocPA8ME=",
+  "dgSpecHash": "cLkyqre/+k4=",
   "success": true,
   "projectFilePath": "/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/Alga.sessions.csproj",
-  "expectedPackageFiles": [],
+  "expectedPackageFiles": [
+    "/Users/airatgalimov/.nuget/packages/microsoft.netcore.app.ref/9.0.11/microsoft.netcore.app.ref.9.0.11.nupkg.sha512",
+    "/Users/airatgalimov/.nuget/packages/microsoft.aspnetcore.app.ref/9.0.11/microsoft.aspnetcore.app.ref.9.0.11.nupkg.sha512"
+  ],
   "logs": []
 }

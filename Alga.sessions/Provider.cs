@@ -1,297 +1,443 @@
 using System.Collections.Concurrent;
-using System.Reflection;
-using System.Text;
-using System.Text.Json;
 
 namespace Alga.sessions;
+
 public class Provider
 {
+    const string ActivateTokenKeyDefault = "0000000000000000000000000000000000000000000000000000000000000000";
     protected readonly ConcurrentDictionary<string, Models.ValueModel> List = new();
+    readonly Models.Config _config;
+    readonly int _sessionTokenHalfLength;
 
-    public readonly Models.Config Config;
-    readonly int SessionTokenHalfLength;
     public Provider(Models.Config? config)
     {
-        Config = config ?? new ();
-        SessionTokenHalfLength = Config.SessionIdLength / 2;
-
-        _ = EngineWhileAsync();
+        _config = config ?? new();
+        _sessionTokenHalfLength = _config.SessionIdLength / 2;
     }
-    public bool Check(string serializedJsonSession) {
-        try {
-            var clientToken = _GetCurrentClientToken(serializedJsonSession);
 
-            if (clientToken == null) return false;
-
-            var kt = _ConvertClientTokenToServerIdAndToken(clientToken);
-
-            if(kt == null || !List.TryGetValue(kt.Value.Id, out var val)) return false;
-
-            if(val.Token == kt.Value.Token)
-                if(!_IsOutdate(val) && val.ToLog != 2) return true;
-                else val.ToLog = 2; 
-            else _TryKill(val, clientToken);
-
-            return false;
-        } catch { return false; }
-
-        // BENCHMARK (TRUE): 7 / 4 / 7 / 3 / 7 / 5 / 9 / 11 / 8 / 9 / 2 / 1 / 2 / 2 / 3 / 3 / 2 / 2 / 2 / 3 / 3 us
-    }
-    public string? Create(string serializedJsonSession)
+    public string? Create(ReadOnlySpan<char> session = default, string? clientKey = null)
     {
         try
         {
-            var clientModel = _DeserializedJsonSession(serializedJsonSession);
+            var id = Helpers.GenerateSecureRandomString(_config.SessionIdLength);
+            var token = Helpers.GenerateSecureRandomString(_config.SessionTokenLength);
 
-            if (clientModel == null) return null;
+            var dts = DateTime.UtcNow.ToString("yyyyMMdd");
+            string tokenHidden = ComputeTokenHidden(session, id, clientKey);
+            string activateTokenKey = ComputeActivateTokenKey(session, id, clientKey, dts);
 
-            var id = Helpers.GenerateSecureRandomString(Config.SessionIdLength);
-            var token = Helpers.GenerateSecureRandomString(Config.SessionTokenLength);
+            if (!List.TryAdd(id, new Models.ValueModel { Token = $"{activateTokenKey}{token}", TokenHidden = tokenHidden })) return null;
 
-            clientModel["token"] = _GetClientToken(id, token);
-
-            if (!List.TryAdd(id, new Models.ValueModel { Token = token })) return null;
-
-            return JsonSerializer.Serialize(clientModel);
+            return string.Concat(session, ":", $"{activateTokenKey}{GetClientToken(id, token)}");
         }
         catch { return null; }
-
-        // BENCHMARK: 12 / 11 / 12 / 23 / 16 / 14 us
     }
 
-    public bool Delete(string serializedJsonSession)
+    public bool Check(string session, string? clientKey = null)
     {
+        if (string.IsNullOrEmpty(session)) return false;
+
         try
         {
-            var token = _GetCurrentClientToken(serializedJsonSession);
+            var span = session.AsSpan();
+            int lastColonIndex = span.LastIndexOf(':');
+            if (lastColonIndex < 0) return false;
 
-            if (token == null) return false;
+            var sessionClientPartSpan = span[..lastColonIndex];
+            var clientTokenSpan = span[(lastColonIndex + 1)..];
 
-            var kt = _ConvertClientTokenToServerIdAndToken(token);
+            var kt = ConvertClientTokenToServerIdAndToken(clientTokenSpan);
+            if (kt == null || !List.TryGetValue(kt.Value.Id, out var val)) return false;
 
-            if (kt == null || !List.TryGetValue(kt.Value.Id, out var val) || val.Token != kt.Value.Token) return false;
+            string tokenHidden = ComputeTokenHidden(sessionClientPartSpan, kt.Value.Id, clientKey);
 
-            val.ToLog = 2;
-
-            return true;
-        }
-        catch { return false; }
-
-        // BENCHMARK (TRUE): 12 / 8 / 21 / 16 / 29 us
-    }
-
-    public string? Refresh(string serializedJsonSession)
-    {
-        try
-        {
-            var sp = _DeserializedJsonSession(serializedJsonSession);
-
-            if (sp == null) return null;
-
-            var clientTokenO = sp["token"];
-
-            if (clientTokenO == null) return null;
-
-            var clientToken = clientTokenO.ToString();
-
-            if (clientToken == null) return null;
-
-            var kt = _ConvertClientTokenToServerIdAndToken(clientToken);
-
-            if (kt != null && List.TryGetValue(kt.Value.Id, out var val))
-                if (val.Token == kt.Value.Token)
-                    if (!_IsOutdate(val) && val.ToLog != 2)
-                        if (DateTime.UtcNow > val.Dt.AddMinutes(Config.SessionRefreshIntervalInMin))
-                        {
-                            val.Token = Helpers.GenerateSecureRandomString(Config.SessionTokenLength);
-                            val.Dt = DateTime.UtcNow;
-                            val.ToLog = 1;
-                            sp["token"] = _GetClientToken(kt.Value.Id, val.Token);
-                            return JsonSerializer.Serialize(sp);
-                        } else return serializedJsonSession;
-                    else val.ToLog = 2;
-                else _TryKill(val, clientToken);
-
-            return null;
-        }
-        catch { return null; }
-
-        // BENCHMARK (TRUE): 12 / 18 / 12 / 21 / 9 / 14 / 27 / 22 / 17 / 23 / 15 / 16 / 18 / 13 / 9 / 9 / 8 / 10 us
-    }
-
-    async Task EngineWhileAsync() {
-        try {
-            string? storageFilePath = null;
-            var delToken = Helpers.GenerateZeroString(Config.SessionTokenLength);
-
-            if (Directory.Exists(Config.StorageDirectoryPath))
+            if (val.Token == $"{kt.Value.ActivateTokenKey}{kt.Value.Token}" && val.TokenHidden == tokenHidden)
             {
-                var logsFileSubPath = Path.Combine(Config.StorageDirectoryPath, $"alga.sessions.logs_{Config.SessionIdLength}_{Config.SessionTokenLength}.dat");
+                if (!IsOutdated(val)) return true;
 
-                if (File.Exists(logsFileSubPath)) storageFilePath = logsFileSubPath;
-                else
-                {
-                    File.Create(logsFileSubPath).Dispose();
-                    storageFilePath = logsFileSubPath;
-                }
-
-                if (storageFilePath != null)
-                {
-                    var delList = new HashSet<string>();
-
-                    using var fs = new FileStream(storageFilePath, FileMode.Open, FileAccess.Read);
-
-                    var blockSize = Config.SessionIdLength + Config.SessionTokenLength;
-
-                    long position = fs.Length;
-
-                    while (position > 0)
-                    {
-                        int bytesToRead = (int)Math.Min(blockSize, position);
-                        position -= bytesToRead;
-
-                        var buffer = new byte[bytesToRead];
-                        fs.Seek(position, SeekOrigin.Begin);
-
-                        int bytesRead = 0;
-                        while (bytesRead < bytesToRead)
-                        {
-                            int result = fs.Read(buffer, bytesRead, bytesToRead - bytesRead);
-                            if (result == 0)
-                                break;
-                            bytesRead += result;
-                        }
-
-                        var block = Encoding.UTF8.GetString(buffer);
-                        if (Config.StorageEncryptionKey != null)
-                            block = Helpers.XorEncryptDecrypt(block, Config.StorageEncryptionKey);
-
-                        string key = block.Substring(0, Config.SessionIdLength);
-                        string token = block.Substring(Config.SessionIdLength);
-
-                        if (token != delToken) List.TryAdd(key, new() { Token = token });
-                        else delList.Add(key);
-                    }
-
-                    foreach (var i in delList) List.TryRemove(i, out _);
-
-                    if (List.Count > 0) File.WriteAllText(storageFilePath, string.Empty);
-                }
+                List.TryRemove(kt.Value.Id, out _);
             }
-
-            var n = 0;
-            while (true)
-            {
-                if (storageFilePath != null)
-                {
-                    if (n > 60)
-                    {
-                        n = 0;
-                        File.WriteAllText(storageFilePath, string.Empty);
-                        foreach (var i in List)
-                            if (i.Value.ToLog == 0)
-                                i.Value.ToLog = 1;
-                    }
-                    else n++;
-
-                    using var writer = new StreamWriter(storageFilePath, append: true);
-                    foreach (var i in List)
-                        if (i.Value.ToLog > 0)
-                        {
-                            if (i.Value.ToLog == 1) i.Value.ToLog = 0;
-                            else if (i.Value.ToLog == 2) i.Value.Token = delToken;
-
-                            var block = $"{i.Key}{i.Value.Token}";
-                            if (Config.StorageEncryptionKey != null)
-                                block = Helpers.XorEncryptDecrypt(block, Config.StorageEncryptionKey);
-                            writer.Write(block);
-                        }
-                }
-
-                foreach (var i in List)
-                    if (i.Value.ToLog == 2)
-                        List.TryRemove(i.Key, out _);
-
-                await Task.Delay(60000);
-            }
-        } catch { } 
-    }
-
-    public string? _GetCurrentClientToken(string serializedJsonSession)
-    {
-        var sp = _DeserializedJsonSession(serializedJsonSession);
-
-        if (sp == null) return null;
-
-        var token = sp["token"].ToString();
-
-        if (string.IsNullOrEmpty(token)) return null;
-
-        return token;
-    }
-
-    (string Id, string Token)? _ConvertClientTokenToServerIdAndToken(string tokenClient)
-    {
-        try
-        {
-            if (string.IsNullOrEmpty(tokenClient)) return null;
-
-            var key = tokenClient.Substring(0, Config.SessionIdLength);
-            var token = tokenClient.Substring(Config.SessionIdLength, Config.SessionTokenLength);
-            return (key, token);
+            else { TryInvalidateSession(val, clientTokenSpan.ToString()); }
         }
-        catch { return null; }
+        catch { }
+
+        return false;
     }
 
-    Dictionary<string, object>? _DeserializedJsonSession(string serializedJsonSession) => JsonSerializer.Deserialize<Dictionary<string, object>>(serializedJsonSession);
-
-    bool _IsOutdate(Models.ValueModel value) => DateTime.UtcNow > value.Dt.AddMinutes(Config.SessionLifetimeInMin) || value.NumberOfErrors > Config.SessionMaxNumberOfErrors ? true : false;
-
-    string _GetClientToken(string id, string token)
+    public string? Refresh(ReadOnlySpan<char> session, string? clientKey = null)
     {
-        if (id == string.Empty || token == string.Empty) return string.Empty;
+        if (session.IsEmpty) return null;
 
-        var random = new Random();
-        var length = random.Next(10, Config.SessionTokenLength);
+        int lastColonIndex = session.LastIndexOf(':');
+        if (lastColonIndex < 0 || lastColonIndex == session.Length - 1) return null;
+
+        var sessionClientPartSpan = session[..lastColonIndex];
+        var clientTokenSpan = session[(lastColonIndex + 1)..];
+
+        var kt = ConvertClientTokenToServerIdAndToken(clientTokenSpan);
+        if (kt == null) return null;
+
+        var dts = DateTime.UtcNow.ToString("yyyyMMdd");
+        string activateTokenKey = ComputeActivateTokenKey(sessionClientPartSpan, kt.Value.Id, clientKey, dts);
+        string tokenHidden = ComputeTokenHidden(sessionClientPartSpan, kt.Value.Id, clientKey);
+
+        if (!TryGetOrAddSession(kt.Value, activateTokenKey, tokenHidden)) return null;
+
+        if (!List.TryGetValue(kt.Value.Id, out var val)) return null;
+
+        if (val.Token != $"{kt.Value.ActivateTokenKey}{kt.Value.Token}") { TryInvalidateSession(val, clientTokenSpan.ToString()); return null; }
+
+        bool needsRefresh = DateTime.UtcNow > val.Dt.AddMinutes(_config.SessionRefreshIntervalInMin);
+        if (!needsRefresh && !IsOutdated(val)) return session.ToString();
+
+        if (val.TokenHidden != tokenHidden) { TryInvalidateSession(val, clientTokenSpan.ToString()); return null; }
+
+        if (IsOutdated(val)) { List.TryRemove(kt.Value.Id, out _); return null; }
+
+        var tknew = Helpers.GenerateSecureRandomString(_config.SessionTokenLength);
+        val.Token = $"{activateTokenKey}{tknew}";
+        val.Dt = DateTime.UtcNow;
+
+        return string.Concat(sessionClientPartSpan.ToString(), ":", $"{activateTokenKey}{GetClientToken(kt.Value.Id, tknew)}");
+    }
+
+
+    public bool Delete(string session)
+    {
+        if (string.IsNullOrEmpty(session)) return false;
+
+        var span = session.AsSpan();
+        int lastColonIndex = span.LastIndexOf(':');
+
+        if (lastColonIndex == -1 || lastColonIndex == span.Length - 1) return false;
+
+        var clientTokenSpan = span[(lastColonIndex + 1)..];
+        var kt = ConvertClientTokenToServerIdAndToken(clientTokenSpan);
+
+        if (kt == null) return false;
+
+        return List.TryRemove(kt.Value.Id, out _);
+    }
+
+    private bool CheckTokenPartMatch(string valueToken, string token, int start, int length, int step = 1)
+    {
+        int matchCount = 0;
+        for (int i = start; i < start + length && i < valueToken.Length && i < token.Length; i += step)
+            if (valueToken[i + 64] == token[i]) matchCount++;
+        return matchCount == length / step;
+    }
+
+    string ComputeTokenHidden(ReadOnlySpan<char> session, string id, string? clientKey)
+    {
+        if (session.IsEmpty) return string.Empty;
+
+        return Helpers.SignWithHmacSha256($"{session}:{id}", $"{_config.SecretKey}{id}{clientKey ?? string.Empty}");
+    }
+
+    string ComputeActivateTokenKey(ReadOnlySpan<char> session, string id, string? clientKey, string date) => string.IsNullOrEmpty(clientKey) ? ActivateTokenKeyDefault : Helpers.SignWithHmacSha256($"{session}:{id}", $"{_config.SecretKey}{id}{clientKey}{date}");
+
+    (string ActivateTokenKey, string Id, string Token)? ConvertClientTokenToServerIdAndToken(ReadOnlySpan<char> tokenClient)
+    {
+        if (tokenClient.Length < _config.SessionIdLength + _config.SessionTokenLength + 64) return null;
+
+        var activateTokenKey = tokenClient[..64];
+        var idSpan = tokenClient.Slice(64, _config.SessionIdLength);
+        var tokenSpan = tokenClient.Slice(64 + _config.SessionIdLength, _config.SessionTokenLength);
+
+        return (activateTokenKey.ToString(), idSpan.ToString(), tokenSpan.ToString());
+    }
+
+    bool IsOutdated(Models.ValueModel value) => DateTime.UtcNow > value.Dt.AddMinutes(_config.SessionLifetimeInMin) || value.NumberOfErrors > _config.SessionMaxNumberOfErrors;
+
+    string GetClientToken(string id, string token)
+    {
+        if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(token)) return string.Empty;
+
+        var length = Random.Shared.Next(10, _config.SessionTokenLength);
         var tksub = Helpers.GenerateSecureRandomString(length);
 
         return $"{id}{token}{tksub}";
     }
 
-    bool _TryKill(Models.ValueModel value, string tokenClient)
+    bool TryInvalidateSession(Models.ValueModel value, string tokenClient)
     {
-        try
+        if (tokenClient.Length != _config.SessionIdLength + _config.SessionTokenLength + 64) return false;
+
+        var kt = ConvertClientTokenToServerIdAndToken(tokenClient.AsSpan());
+        if (kt == null) return false;
+
+        var token = kt.Value.Token;
+        if (token.Length != _config.SessionTokenLength || value.Token.Length != _config.SessionTokenLength + 64)
+            return false;
+
+        // Check token parts
+        if (CheckTokenPartMatch(value.Token, token, 0, _sessionTokenHalfLength) ||
+            CheckTokenPartMatch(value.Token, token, _sessionTokenHalfLength, _sessionTokenHalfLength) ||
+            CheckTokenPartMatch(value.Token, token, 0, _config.SessionTokenLength, step: 2))
         {
-            if (tokenClient.Length != Config.SessionIdLength + Config.SessionTokenLength) return false;
-
-            var kt = _ConvertClientTokenToServerIdAndToken(tokenClient);
-
-            if (kt == null) return false;
-
-            var f = false;
-
-            var sml = 0;
-            for (int i = 0; i < SessionTokenHalfLength; i++) if (value.Token[i] == kt.Value.Token[i]) sml++;
-            if (sml == SessionTokenHalfLength) f = true;
-
-            if (!f)
-            {
-                var smlOne = 0;
-                for (int i = Config.SessionTokenLength; i >= SessionTokenHalfLength; i--) if (value.Token[i] == kt.Value.Token[i]) smlOne++;
-                if (sml == SessionTokenHalfLength) f = true;
-            }
-
-            if (!f)
-            {
-                var smlTwo = 0;
-                for (int i = 0; i < Config.SessionTokenLength; i += 2) if (value.Token[i] == kt.Value.Token[i]) smlTwo++;
-                if (sml == SessionTokenHalfLength) f = true;
-            }
-
-            if (f) value.ToLog = 2; else value.NumberOfErrors++;
-
-            return f;
+            List.TryRemove(kt.Value.Id, out _);
+            return true;
         }
-        catch { return false; }
+
+        value.NumberOfErrors++;
+        return false;
+    }
+    
+    bool TryGetOrAddSession((string ActivateTokenKey, string Id, string Token) kt, string activateTokenKey, string tokenHidden)
+    {
+        if (List.TryGetValue(kt.Id, out _)) return true;
+
+        if (!string.IsNullOrEmpty(activateTokenKey) && kt.ActivateTokenKey != ActivateTokenKeyDefault && activateTokenKey == kt.ActivateTokenKey)
+            return List.TryAdd(kt.Id, new Models.ValueModel { Token = $"{activateTokenKey}{kt.Token}", TokenHidden = tokenHidden });
+
+        return false;
     }
 }
+
+
+// using System.Collections.Concurrent;
+
+
+// namespace Alga.sessions;
+
+// public class Provider
+// {
+//     protected readonly ConcurrentDictionary<string, Models.ValueModel> List = new();
+//     readonly Models.Config _Config;
+//     readonly int SessionTokenHalfLength;
+//     readonly string activateTokenKeyDefault = "0000000000000000000000000000000000000000000000000000000000000000";
+//     public Provider(Models.Config? config)
+//     {
+//         _Config = config ?? new();
+//         SessionTokenHalfLength = _Config.SessionIdLength / 2;
+//     }
+
+//     /// <summary>
+//     /// Creates a new secure session token based on optional client-specific parameters.
+//     /// </summary>
+//     /// <param name="session">
+//     /// Optional client data in the format <c>{client_param_1}:{client_param_2}</c>,
+//     /// such as <c>user_id</c> or <c>role_id</c>. This can influence both server behavior
+//     /// (e.g. access control) and client UI logic.
+//     /// </param>
+//     /// <returns>
+//     /// A combined session string in the format <c>{client_data}:{session_token}</c>,
+//     /// or <c>null</c> if session creation failed.
+//     /// </returns>
+//     public string? Create(ReadOnlySpan<char> session = default, string? clientKey = null)
+//     {
+//         try
+//         {
+//             var id = Helpers.GenerateSecureRandomString(_Config.SessionIdLength);
+//             var token = Helpers.GenerateSecureRandomString(_Config.SessionTokenLength);
+
+//             var dts = DateTime.UtcNow.ToString("yyyyMMdd");
+//             string tokenHidden = Helpers.SignWithHmacSha256($"{session}:{id}", $"{_Config.SecretKey}{id}{clientKey}");
+//             string activateTokenKey = string.IsNullOrEmpty(clientKey) ? activateTokenKeyDefault : Helpers.SignWithHmacSha256($"{session}:{id}", $"{_Config.SecretKey}{id}{clientKey}{dts}");
+
+//             if (!List.TryAdd(id, new Models.ValueModel { Token = $"{activateTokenKey}{token}", TokenHidden = tokenHidden }))
+//                 return null;
+
+//             return string.Concat(session, ":", $"{activateTokenKey}{_GetClientToken(id, token)}");
+//         }
+//         catch { return null; }
+//     }
+
+//     public bool Check(string session, string? clientKey = null)
+//     {
+//         if (string.IsNullOrEmpty(session)) return false;
+
+//         try
+//         {
+//             var span = session.AsSpan();
+//             int lastColonIndex = span.LastIndexOf(':');
+//             if (lastColonIndex < 0) return false;
+
+//             var sessionClientPartSpan = span.Slice(0, lastColonIndex);
+//             string tokenSubHidden = sessionClientPartSpan.ToString();
+
+//             var clientTokenSpan = span.Slice(lastColonIndex + 1);
+
+//             var kt = _ConvertClientTokenToServerIdAndToken(clientTokenSpan);
+//             if (kt == null || !List.TryGetValue(kt.Value.Id, out var val)) return false;
+
+//             string tokenHidden = tokenSubHidden.Length > 0 ? Helpers.SignWithHmacSha256($"{tokenSubHidden}:{kt.Value.Id}", $"{_Config.SecretKey}{kt.Value.Id}{clientKey}") : string.Empty;
+
+//             if (val.Token == $"{kt.Value.activateTokenKey}{kt.Value.Token}" && val.TokenHidden == tokenHidden)
+//             {
+//                 if (!_IsOutdate(val) && val.ToLog != 2) return true;
+//                 val.ToLog = 2;
+//             }
+//             else _TryKill(val, clientTokenSpan.ToString());
+//         }
+//         catch { }
+        
+//         return false;
+//     }
+
+//     public string? Refresh(ReadOnlySpan<char> session, string? clientKey = null)
+//     {
+//         // 1. Быстрые проверки входа
+//         if (session.IsEmpty) return null;
+
+//         int lastColonIndex = session.LastIndexOf(':');
+//         if (lastColonIndex < 0 || lastColonIndex == session.Length - 1) return null;
+
+//         // 2. Разделяем сессию без аллокаций
+//         ReadOnlySpan<char> sessionClientPartSpan = session.Slice(0, lastColonIndex);
+//         ReadOnlySpan<char> clientTokenSpan = session.Slice(lastColonIndex + 1);
+
+
+//         // 3. Проверяем токен и дату ДО вычисления HMAC
+//         var kt = _ConvertClientTokenToServerIdAndToken(clientTokenSpan);
+
+//         if (kt == null) return null;
+
+//         var dts = DateTime.UtcNow.ToString("yyyyMMdd");
+//         string activateTokenKey = string.IsNullOrEmpty(clientKey) ? activateTokenKeyDefault : Helpers.SignWithHmacSha256($"{sessionClientPartSpan}:{kt.Value.Id}", $"{_Config.SecretKey}{kt.Value.Id}{clientKey}{dts}");
+//         string tokenSubHidden = sessionClientPartSpan.ToString();
+//         string tokenHidden = tokenSubHidden.Length > 0  ? Helpers.SignWithHmacSha256($"{tokenSubHidden}:{kt.Value.Id}", $"{_Config.SecretKey}{kt.Value.Id}{clientKey}") : string.Empty;
+
+//         if(!List.TryGetValue(kt.Value.Id, out var valx))
+//         {
+//             // пробуем добавить ключ в базу данных
+//             if (!string.IsNullOrEmpty(clientKey) && kt.Value.activateTokenKey != activateTokenKeyDefault && activateTokenKey == kt.Value.activateTokenKey)
+//             {
+//                 if (!List.TryAdd(kt.Value.Id, new Models.ValueModel { Token = $"{activateTokenKey}{kt.Value.Token}", TokenHidden = tokenHidden }))
+//                     return null;
+//             }
+//             else return null;
+//         }
+
+//         if(!List.TryGetValue(kt.Value.Id, out var val)) return null;
+
+//         if (val.Token != $"{kt.Value.activateTokenKey}{kt.Value.Token}")
+//         {
+//             _TryKill(val, clientTokenSpan.ToString());
+//             return null;
+//         }
+
+//         // 4. Проверяем срок действия без лишних вычислений
+//         bool needsRefresh = DateTime.UtcNow > val.Dt.AddMinutes(_Config.SessionRefreshIntervalInMin);
+//         if (!needsRefresh && !_IsOutdate(val) && val.ToLog != 2)
+//             return new string(session); // Аллокация только здесь
+
+//         // 5. Только если нужно — вычисляем HMAC
+
+
+//         if (val.TokenHidden != tokenHidden)
+//         {
+//             _TryKill(val, clientTokenSpan.ToString());
+//             return null;
+//         }
+
+//         if (_IsOutdate(val) || val.ToLog == 2)
+//         {
+//             val.ToLog = 2;
+//             return null;
+//         }
+
+//         // 6. Обновляем токен
+//         val.Token =  $"{activateTokenKey}{Helpers.GenerateSecureRandomString(_Config.SessionTokenLength)}";
+//         val.Dt = DateTime.UtcNow;
+//         val.ToLog = 1;
+
+//         return string.Concat(tokenSubHidden, ":", $"{activateTokenKey}{_GetClientToken(kt.Value.Id, val.Token)}");
+//     }
+
+//     public bool Delete(string session)
+//     {
+//         if (string.IsNullOrEmpty(session))
+//             return false;
+
+//         ReadOnlySpan<char> span = session;
+//         int lastColonIndex = span.LastIndexOf(':');
+
+//         if (lastColonIndex == -1 || lastColonIndex == span.Length - 1)
+//             return false;
+
+//         var clientTokenSpan = span[(lastColonIndex + 1)..];
+
+//         var kt = _ConvertClientTokenToServerIdAndToken(clientTokenSpan);
+//         if (kt == null) return false;
+
+//         if (!List.TryGetValue(kt.Value.Id, out var val) || val.Token != kt.Value.Token)
+//             return false;
+
+//         val.ToLog = 2;
+//         return true;
+//     }
+
+
+
+
+//     (string activateTokenKey, string Id, string Token)? _ConvertClientTokenToServerIdAndToken(ReadOnlySpan<char> tokenClient)
+//     {
+//         if (tokenClient.Length < _Config.SessionIdLength + _Config.SessionTokenLength) return null;
+
+//         var activateTokenKey = tokenClient.Slice(0, 64);
+//         var idSpan = tokenClient.Slice(64, _Config.SessionIdLength);
+//         var tokenSpan = tokenClient.Slice(64 + _Config.SessionIdLength, _Config.SessionTokenLength);
+
+//         return (activateTokenKey.ToString(), idSpan.ToString(), tokenSpan.ToString());
+//     }
+
+//     bool _IsOutdate(Models.ValueModel value) => DateTime.UtcNow > value.Dt.AddMinutes(_Config.SessionLifetimeInMin) || value.NumberOfErrors > _Config.SessionMaxNumberOfErrors ? true : false;
+
+
+//     string _GetClientToken(string id, string token)
+//     {
+//         if (id == string.Empty || token == string.Empty) return string.Empty;
+
+//         var random = new Random();
+//         var length = random.Next(10, _Config.SessionTokenLength);
+//         var tksub = Helpers.GenerateSecureRandomString(length);
+
+//         return $"{id}{token}{tksub}";
+//     }
+
+//     /// <summary>
+//     /// Публичнвй ключ, сроком жизни в 1 сутки, который служит для восстанавления сессии если ссессия была утерена например по причине того что серевер был перезагружен 
+//     /// </summary>
+//     /// <returns></returns>
+
+
+//     bool _TryKill(Models.ValueModel value, ReadOnlySpan<char> tokenClient)
+//     {
+//         // Проверка длины токена
+//         if (tokenClient.Length != _Config.SessionIdLength + _Config.SessionTokenLength) return false;
+
+//         var kt = _ConvertClientTokenToServerIdAndToken(tokenClient);
+//         if (kt == null) return false;
+
+//         ReadOnlySpan<char> token = kt.Value.Token;
+
+//         if (token.Length != _Config.SessionTokenLength || value.Token.Length != _Config.SessionTokenLength) return false;
+
+//         int matchCount;
+
+//         // Вариант 1: первая половина
+//         matchCount = 0;
+//         for (int i = 0; i < SessionTokenHalfLength; i++)
+//             if (value.Token[i] == token[i])
+//                 matchCount++;
+//         if (matchCount == SessionTokenHalfLength) { value.ToLog = 2; return true; }
+
+//         // Вариант 2: вторая половина
+//         matchCount = 0;
+//         for (int i = SessionTokenHalfLength; i < _Config.SessionTokenLength; i++)
+//             if (value.Token[i] == token[i])
+//                 matchCount++;
+//         if (matchCount == SessionTokenHalfLength) { value.ToLog = 2; return true; }
+
+//         // Вариант 3: каждый второй символ (чётные индексы)
+//         matchCount = 0;
+//         for (int i = 0; i < _Config.SessionTokenLength; i += 2)
+//             if (value.Token[i] == token[i])
+//                 matchCount++;
+//         if (matchCount == SessionTokenHalfLength) { value.ToLog = 2; return true; }
+
+//         value.NumberOfErrors++;
+//         return false;
+//     }
+// }
