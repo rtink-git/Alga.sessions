@@ -7,8 +7,9 @@ public class Provider
     const byte SessionIdLength = 32; // Guid length
     const byte SessionTokenLength = 64;
     const int SessionMaxNumberOfErrors = int.MaxValue; // Max error number. If the number of variables under the current key exceeds this number, the session will be deleted from memory immediately
-
+    const short SessionLifetimeInMin = short.MaxValue; // Session's life time in min, if there was no refresh. Default is 22 day
     const string ActivateTokenKeyDefault = "0000000000000000000000000000000000000000000000000000000000000000";
+
     protected readonly ConcurrentDictionary<string, Models.ValueModel> List = new();
     readonly Models.Config _config;
     readonly int _sessionTokenHalfLength;
@@ -27,10 +28,10 @@ public class Provider
             var token = Helpers.GenerateSecureRandomString(SessionTokenLength);
 
             var dts = DateTime.UtcNow.ToString("yyyyMMdd");
-            string tokenHidden = ComputeTokenHidden(session, id, clientKey);
+
             string activateTokenKey = ComputeActivateTokenKey(session, id, clientKey, dts);
 
-            if (!List.TryAdd(id, new Models.ValueModel { Token = $"{activateTokenKey}{token}", TokenHidden = tokenHidden })) return null;
+            if (!List.TryAdd(id, new Models.ValueModel { Token = $"{activateTokenKey}{token}" })) return null;
 
             return string.Concat(session, ":", $"{activateTokenKey}{GetClientToken(id, token)}");
         }
@@ -53,9 +54,7 @@ public class Provider
             var kt = ConvertClientTokenToServerIdAndToken(clientTokenSpan);
             if (kt == null || !List.TryGetValue(kt.Value.Id, out var val)) return false;
 
-            string tokenHidden = ComputeTokenHidden(sessionClientPartSpan, kt.Value.Id, clientKey);
-
-            if (val.Token == $"{kt.Value.ActivateTokenKey}{kt.Value.Token}" && val.TokenHidden == tokenHidden)
+            if (val.Token == $"{kt.Value.ActivateTokenKey}{kt.Value.Token}")
             {
                 if (!IsOutdated(val)) return true;
 
@@ -83,9 +82,8 @@ public class Provider
 
         var dts = DateTime.UtcNow.ToString("yyyyMMdd");
         string activateTokenKey = ComputeActivateTokenKey(sessionClientPartSpan, kt.Value.Id, clientKey, dts);
-        string tokenHidden = ComputeTokenHidden(sessionClientPartSpan, kt.Value.Id, clientKey);
 
-        if (!TryGetOrAddSession(kt.Value, activateTokenKey, tokenHidden)) return null;
+        if (!TryGetOrAddSession(kt.Value, activateTokenKey)) return null;
 
         if (!List.TryGetValue(kt.Value.Id, out var val)) return null;
 
@@ -93,8 +91,6 @@ public class Provider
 
         bool needsRefresh = DateTime.UtcNow > val.Dt.AddMinutes(_config.SessionRefreshIntervalInMin);
         if (!needsRefresh && !IsOutdated(val)) return session.ToString();
-
-        if (val.TokenHidden != tokenHidden) { TryInvalidateSession(val, clientTokenSpan.ToString()); return null; }
 
         if (IsOutdated(val)) { List.TryRemove(kt.Value.Id, out _); return null; }
 
@@ -131,12 +127,12 @@ public class Provider
         return matchCount == length / step;
     }
 
-    string ComputeTokenHidden(ReadOnlySpan<char> session, string id, string? clientKey)
-    {
-        if (session.IsEmpty) return string.Empty;
+    // string ComputeTokenHidden(ReadOnlySpan<char> session, string id, string? clientKey)
+    // {
+    //     if (session.IsEmpty) return string.Empty;
 
-        return Helpers.SignWithHmacSha256($"{session}:{id}", $"{_config.SecretKey}{id}{clientKey ?? string.Empty}");
-    }
+    //     return Helpers.SignWithHmacSha256($"{session}:{id}", $"{_config.SecretKey}{id}{clientKey ?? string.Empty}");
+    // }
 
     string ComputeActivateTokenKey(ReadOnlySpan<char> session, string id, string? clientKey, string date) => string.IsNullOrEmpty(clientKey) ? ActivateTokenKeyDefault : Helpers.SignWithHmacSha256($"{session}:{id}", $"{_config.SecretKey}{id}{clientKey}{date}");
 
@@ -151,7 +147,7 @@ public class Provider
         return (activateTokenKey.ToString(), idSpan.ToString(), tokenSpan.ToString());
     }
 
-    bool IsOutdated(Models.ValueModel value) => DateTime.UtcNow > value.Dt.AddMinutes(_config.SessionLifetimeInMin) || value.NumberOfErrors > SessionMaxNumberOfErrors;
+    bool IsOutdated(Models.ValueModel value) => DateTime.UtcNow > value.Dt.AddMinutes(SessionLifetimeInMin) || value.NumberOfErrors > SessionMaxNumberOfErrors;
 
     string GetClientToken(string id, string token)
     {
@@ -187,12 +183,12 @@ public class Provider
         return false;
     }
 
-    bool TryGetOrAddSession((string ActivateTokenKey, string Id, string Token) kt, string activateTokenKey, string tokenHidden)
+    bool TryGetOrAddSession((string ActivateTokenKey, string Id, string Token) kt, string activateTokenKey)
     {
         if (List.TryGetValue(kt.Id, out _)) return true;
 
         if (!string.IsNullOrEmpty(activateTokenKey) && kt.ActivateTokenKey != ActivateTokenKeyDefault && activateTokenKey == kt.ActivateTokenKey)
-            return List.TryAdd(kt.Id, new Models.ValueModel { Token = $"{activateTokenKey}{kt.Token}", TokenHidden = tokenHidden });
+            return List.TryAdd(kt.Id, new Models.ValueModel { Token = $"{activateTokenKey}{kt.Token}" });
 
         return false;
     }
