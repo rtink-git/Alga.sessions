@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Alga.sessions")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("2.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.0.0+2b6163478a5554dabe8d40fc61869ef3671c9a6e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.0.0+10573bdabe00542314488bd2518707a1b21abc69")]
 [assembly: System.Reflection.AssemblyProductAttribute("sessions")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Alga.sessions")]
 [assembly: System.Reflection.AssemblyVersionAttribute("2.0.0.0")]

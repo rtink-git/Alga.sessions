@@ -182,7 +182,7 @@ public class Provider
         value.NumberOfErrors++;
         return false;
     }
-    
+
     bool TryGetOrAddSession((string ActivateTokenKey, string Id, string Token) kt, string activateTokenKey, string tokenHidden)
     {
         if (List.TryGetValue(kt.Id, out _)) return true;
@@ -271,7 +271,7 @@ public class Provider
 //             else _TryKill(val, clientTokenSpan.ToString());
 //         }
 //         catch { }
-        
+
 //         return false;
 //     }
 
