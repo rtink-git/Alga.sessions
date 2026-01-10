@@ -4,7 +4,8 @@ namespace Alga.sessions;
 
 public class Provider
 {
-    const byte SessionKeyLength = 32; // Guid length
+    const byte SessionIdLength = 32; // Guid length
+    const byte SessionTokenLength = 64;
 
     const string ActivateTokenKeyDefault = "0000000000000000000000000000000000000000000000000000000000000000";
     protected readonly ConcurrentDictionary<string, Models.ValueModel> List = new();
@@ -14,15 +15,15 @@ public class Provider
     public Provider(Models.Config? config)
     {
         _config = config ?? new();
-        _sessionTokenHalfLength = SessionKeyLength / 2;
+        _sessionTokenHalfLength = SessionIdLength / 2;
     }
 
     public string? Create(ReadOnlySpan<char> session = default, string? clientKey = null)
     {
         try
         {
-            var id = Helpers.GenerateSecureRandomString(SessionKeyLength);
-            var token = Helpers.GenerateSecureRandomString(_config.SessionTokenLength);
+            var id = Helpers.GenerateSecureRandomString(SessionIdLength);
+            var token = Helpers.GenerateSecureRandomString(SessionTokenLength);
 
             var dts = DateTime.UtcNow.ToString("yyyyMMdd");
             string tokenHidden = ComputeTokenHidden(session, id, clientKey);
@@ -96,7 +97,7 @@ public class Provider
 
         if (IsOutdated(val)) { List.TryRemove(kt.Value.Id, out _); return null; }
 
-        var tknew = Helpers.GenerateSecureRandomString(_config.SessionTokenLength);
+        var tknew = Helpers.GenerateSecureRandomString(SessionTokenLength);
         val.Token = $"{activateTokenKey}{tknew}";
         val.Dt = DateTime.UtcNow;
 
@@ -140,11 +141,11 @@ public class Provider
 
     (string ActivateTokenKey, string Id, string Token)? ConvertClientTokenToServerIdAndToken(ReadOnlySpan<char> tokenClient)
     {
-        if (tokenClient.Length < SessionKeyLength + _config.SessionTokenLength + 64) return null;
+        if (tokenClient.Length < SessionIdLength + SessionTokenLength + 64) return null;
 
         var activateTokenKey = tokenClient[..64];
-        var idSpan = tokenClient.Slice(64, SessionKeyLength);
-        var tokenSpan = tokenClient.Slice(64 + SessionKeyLength, _config.SessionTokenLength);
+        var idSpan = tokenClient.Slice(64, SessionIdLength);
+        var tokenSpan = tokenClient.Slice(64 + SessionIdLength, SessionTokenLength);
 
         return (activateTokenKey.ToString(), idSpan.ToString(), tokenSpan.ToString());
     }
@@ -155,7 +156,7 @@ public class Provider
     {
         if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(token)) return string.Empty;
 
-        var length = Random.Shared.Next(10, _config.SessionTokenLength);
+        var length = Random.Shared.Next(10, SessionTokenLength);
         var tksub = Helpers.GenerateSecureRandomString(length);
 
         return $"{id}{token}{tksub}";
@@ -163,19 +164,19 @@ public class Provider
 
     bool TryInvalidateSession(Models.ValueModel value, string tokenClient)
     {
-        if (tokenClient.Length != SessionKeyLength + _config.SessionTokenLength + 64) return false;
+        if (tokenClient.Length != SessionIdLength + SessionTokenLength + 64) return false;
 
         var kt = ConvertClientTokenToServerIdAndToken(tokenClient.AsSpan());
         if (kt == null) return false;
 
         var token = kt.Value.Token;
-        if (token.Length != _config.SessionTokenLength || value.Token.Length != _config.SessionTokenLength + 64)
+        if (token.Length != SessionTokenLength || value.Token.Length != SessionTokenLength + 64)
             return false;
 
         // Check token parts
         if (CheckTokenPartMatch(value.Token, token, 0, _sessionTokenHalfLength) ||
             CheckTokenPartMatch(value.Token, token, _sessionTokenHalfLength, _sessionTokenHalfLength) ||
-            CheckTokenPartMatch(value.Token, token, 0, _config.SessionTokenLength, step: 2))
+            CheckTokenPartMatch(value.Token, token, 0, SessionTokenLength, step: 2))
         {
             List.TryRemove(kt.Value.Id, out _);
             return true;
