@@ -1,3 +1,0 @@
-/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Release/net9.0/win-x64/publish/Alga.sessions.dll
-/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Release/net9.0/win-x64/publish/Alga.sessions.deps.json
-/Users/airatgalimov/Documents/Airat/Projects/Alga/Alga.sessions/Alga.sessions/bin/Release/net9.0/win-x64/publish/Alga.sessions.pdb
