@@ -6,6 +6,7 @@ public class Provider
 {
     const byte SessionIdLength = 32; // Guid length
     const byte SessionTokenLength = 64;
+    const int SessionMaxNumberOfErrors = int.MaxValue; // Max error number. If the number of variables under the current key exceeds this number, the session will be deleted from memory immediately
 
     const string ActivateTokenKeyDefault = "0000000000000000000000000000000000000000000000000000000000000000";
     protected readonly ConcurrentDictionary<string, Models.ValueModel> List = new();
@@ -150,7 +151,7 @@ public class Provider
         return (activateTokenKey.ToString(), idSpan.ToString(), tokenSpan.ToString());
     }
 
-    bool IsOutdated(Models.ValueModel value) => DateTime.UtcNow > value.Dt.AddMinutes(_config.SessionLifetimeInMin) || value.NumberOfErrors > _config.SessionMaxNumberOfErrors;
+    bool IsOutdated(Models.ValueModel value) => DateTime.UtcNow > value.Dt.AddMinutes(_config.SessionLifetimeInMin) || value.NumberOfErrors > SessionMaxNumberOfErrors;
 
     string GetClientToken(string id, string token)
     {
