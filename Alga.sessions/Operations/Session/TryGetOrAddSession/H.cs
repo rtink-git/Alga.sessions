@@ -1,8 +1,6 @@
-using System.Collections.Concurrent;
-
 namespace Alga.sessions.Operations.Session.TryGetOrAddSession;
 
-internal static class H
+static class H
 {
     public static bool Do(Context _context, string activateTokenKeyDefault, (string ActivateTokenKey, string Id, string Token) kt, string activateTokenKey)
     {

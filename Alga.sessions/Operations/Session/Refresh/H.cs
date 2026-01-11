@@ -1,8 +1,6 @@
-using System.Collections.Concurrent;
-
 namespace Alga.sessions.Operations.Session.Refresh;
 
-internal static class H
+static class H
 {
     public static string? Do(Context context, ReadOnlySpan<char> session, string? clientKey)
     {
@@ -20,11 +18,11 @@ internal static class H
         var dts = Operations.GetDTUNowShort.H.Do();
         string activateTokenKey = Operations.ComputeActivateTokenKey.H.Do(sessionClientPartSpan, kt.Value.Id, clientKey, dts, context.Settings.ActivateTokenKeyDefault, context.Settings.SecretKey);
 
-        if (!Operations.Session.TryGetOrAddSession.H.Do(context.Store, context.Settings.ActivateTokenKeyDefault, kt.Value, activateTokenKey)) return null;
+        if (!Operations.Session.TryGetOrAddSession.H.Do(context, context.Settings.ActivateTokenKeyDefault, kt.Value, activateTokenKey)) return null;
 
         if (!context.Store.TryGetValue(kt.Value.Id, out var val)) return null;
 
-        if (val.Token != $"{kt.Value.ActivateTokenKey}{kt.Value.Token}") { Operations.Session.TryInvalidateSession.H.Do(val, clientTokenSpan.ToString(), context.Settings.SessionIdLength, context.Settings.SessionTokenLength, context.Settings.SessionTokenHalfLength, context.Store); return null; }
+        if (val.Token != $"{kt.Value.ActivateTokenKey}{kt.Value.Token}") { Operations.Session.TryInvalidateSession.H.Do(val, clientTokenSpan.ToString(), context.Settings.SessionIdLength, context.Settings.SessionTokenLength, context.Settings.SessionTokenHalfLength, context); return null; }
 
         bool needsRefresh = DateTime.UtcNow > val.Dt.AddMinutes(context.Settings.SessionRefreshIntervalInMin);
         if (!needsRefresh && !Operations.Session.IsOutdated.H.Do(val, context.Settings.SessionLifetimeInMin, context.Settings.SessionMaxNumberOfErrors)) return session.ToString();

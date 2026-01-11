@@ -1,6 +1,6 @@
 namespace Alga.sessions.Operations.GetClientToken;
 
-internal static class H
+static class H
 {
     public static string Do(string id, string token, byte sessionTokenLength)
     {

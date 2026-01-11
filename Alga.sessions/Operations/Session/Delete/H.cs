@@ -1,8 +1,6 @@
-using System.Collections.Concurrent;
-
 namespace Alga.sessions.Operations.Session.Delete;
 
-internal static class H
+static class H
 {
     public static bool Do(string session, Context context)
     {

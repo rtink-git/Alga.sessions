@@ -1,6 +1,6 @@
 namespace Alga.sessions.Operations.CheckTokenPartMatch;
 
-internal static class H
+static class H
 {
     public static bool Do(string valueToken, string token, int start, int length, int step = 1)
     {

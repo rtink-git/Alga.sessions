@@ -1,8 +1,6 @@
-using System.Collections.Concurrent;
-
 namespace Alga.sessions.Operations.Session.TryInvalidateSession;
 
-internal static class H
+static class H
 {
     public static bool Do(SessionStore.ValueModel value, string tokenClient, int sessionIdLength, byte sessionTokenLength, byte sessionTokenHalfLength, Context context)
     {

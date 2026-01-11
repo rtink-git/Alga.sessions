@@ -1,6 +1,6 @@
 namespace Alga.sessions.Operations.Session.Create;
 
-internal static class H // byte sessionTokenLength, string activateTokenKeyDefault, string secretKey
+static class H
 {
     public static string? Do(Context context, ReadOnlySpan<char> session = default, string? clientKey = null)
     {

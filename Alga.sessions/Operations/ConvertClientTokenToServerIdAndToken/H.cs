@@ -2,7 +2,7 @@ using System;
 
 namespace Alga.sessions.Operations.ConvertClientTokenToServerIdAndToken;
 
-internal static class H
+static class H
 {
     public static (string ActivateTokenKey, string Id, string Token)? Do(ReadOnlySpan<char> tokenClient, int sessionIdLength, byte sessionTokenLength)
     {

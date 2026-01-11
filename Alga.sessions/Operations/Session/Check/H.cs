@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 
 namespace Alga.sessions.Operations.Session.Check;
 
-internal static class H
+static class H
 {
     public static bool Do(Context context, string session, string? clientKey = null)
     {
@@ -26,7 +26,7 @@ internal static class H
 
                 context.Store.TryRemove(kt.Value.Id, out _);
             }
-            else { Operations.Session.TryInvalidateSession.H.Do(val, clientTokenSpan.ToString(), context.Settings.SessionIdLength, context.Settings.SessionTokenLength, context.Settings.SessionTokenHalfLength, context.Store); }
+            else { Operations.Session.TryInvalidateSession.H.Do(val, clientTokenSpan.ToString(), context.Settings.SessionIdLength, context.Settings.SessionTokenLength, context.Settings.SessionTokenHalfLength, context); }
         }
         catch { }
 
