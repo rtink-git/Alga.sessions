@@ -1,6 +1,6 @@
 namespace Alga.sessions;
 
-public class Provider
+public class Provider : IProvider
 {
     private readonly Context _context;
 
