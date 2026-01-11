@@ -19,4 +19,19 @@
         <Link>README.md</Link>
     </None>
   </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Operations/CheckTokenPartMatch/" />
+    <Folder Include="Operations/ComputeActivateTokenKey/" />
+    <Folder Include="Operations/ConvertClientTokenToServerIdAndToken/" />
+    <Folder Include="Operations/GetClientToken/" />
+    <Folder Include="Operations/GetDTUNowShort/" />
+    <Folder Include="Operations/Session/" />
+    <Folder Include="Operations/Session/Check/" />
+    <Folder Include="Operations/Session/Delete/" />
+    <Folder Include="Operations/Session/IsOutdated/" />
+    <Folder Include="Operations/Session/Refresh/" />
+    <Folder Include="Operations/Session/TryGetOrAddSession/" />
+    <Folder Include="Operations/Session/TryInvalidateSession/" />
+  </ItemGroup>
 </Project>

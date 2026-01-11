@@ -1,12 +1,13 @@
+
 using System.Buffers;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Alga.sessions;
+namespace Alga.sessions.Operations.SignWithHmacSha256;
 
-internal static partial class Helpers
+static class H
 {
-    internal static string SignWithHmacSha256(ReadOnlySpan<char> text, string secretKey)
+    public static string Do(ReadOnlySpan<char> text, string secretKey)
     {
         if (text.IsEmpty) return string.Empty;
 

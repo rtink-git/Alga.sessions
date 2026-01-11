@@ -1,11 +1,15 @@
 // For developers
 // --------------------
-// github: https://github.com/rtink-git/Alga.sessions
 // nuget: https://www.nuget.org/packages/Alga.sessions
 // terminal command: dotnet pack
 
 
 // Tasks
 // --------------------
-// А что если id сессии будет соответствовать id user? и прото унифицируе его до guid !!! и я бы это не публиковал в документации но открыл бы возможность добавлять ключ (id) как guid пользователя 
-// я бы конечно еще номер сессии упаковал бы ключ (хотя это не очевидно) но со смещением впринципе вычесслить id сессии довольно легко а еболы со ссмещениями много
+
+
+Abbreviations
+--------------------
+Req - Request
+Res - response
+H - Handler

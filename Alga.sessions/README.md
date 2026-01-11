@@ -2,10 +2,6 @@
 
 A lightweight .NET library for streamlined session management: Create, Refresh, Validation, Deletion. Sessions are stored in RAM for quick access. For long-term storage of sessions, you can use an automatically created file that is updated once a minute, for this you just need to specify the path to the directory.
 
-
-
-
-
 ## How does this work. Step by step
 
 1. **Install-Package** [Alga.sessions](https://www.nuget.org/packages/Alga.sessions)
@@ -16,11 +12,7 @@ A lightweight .NET library for streamlined session management: Create, Refresh, 
 {
     ...,
     "AlgaSessionsConfig": {
-        "SessionIdLength": 32, 
-        "SessionTokenLength": 128,
-        "SessionRefreshIntervalInMin": 5 
-        "SessionLifetimeInMin": 5040,
-        "SessionMaxNumberOfErrors": 10000000,
+        "SessionRefreshIntervalInMin": 5,
         "SecretKey": "aA1bB2cC3dD4efE5gG6hH7",
         "StorageDirectoryPath": "C:\\"
     }
@@ -49,7 +41,7 @@ Storing sessions in memory is an expensive operation, so it is recommended to cr
 After authentication, it is necessary to define the data model that will be transferred to the client, they can be anything, a data: role, user id, etc.
 
 ```
-var userContext = ${m.userId}:{m.roleId}; 
+var userContext = ${m.userId}:{m.roleId};
 ```
 
 Create session:
@@ -58,7 +50,6 @@ Create session:
 var session = sessionProvider.Create(userContext);
 ```
 
-
 ### Upates
 
 What has been changed in new build (2.0.0) compared to the previous version (1.1.1)
@@ -66,15 +57,6 @@ What has been changed in new build (2.0.0) compared to the previous version (1.1
 - Убрали json model { } токена для передачи между сервер-клиент-сервер, заменили на строку с разделителем {userId}:{roleId}:{token} чтобы избавиться от json  ссериализации и десериализации
 
 - Добавили не обязательный но рекоммендуемый параметр Client Key в методы Creaate / Refresh / Check - для дополнительного механиза защиты сессий от подделки. Например для web это может название устройства с информацией о браузере, которая автоматически отправляется клиентом в context
-
-
-
-
-
-
-
-
-
 
 # Alga.sessions
 
@@ -90,9 +72,9 @@ A lightweight .NET library for streamlined session management: Create, Refresh, 
 {
     ...,
     "AlgaSessionsConfig": {
-        "SessionIdLength": 32, 
+        "SessionIdLength": 32,
         "SessionTokenLength": 128,
-        "SessionRefreshIntervalInMin": 5 
+        "SessionRefreshIntervalInMin": 5
         "SessionLifetimeInMin": 5040,
         "SessionMaxNumberOfErrors": 10000000,
         "StorageDirectoryPath": "C:\\",
@@ -123,7 +105,7 @@ Storing sessions in memory is an expensive operation, so it is recommended to cr
 After authentication, it is necessary to define the data model that will be transferred to the client, they can be anything, a data: role, user id, etc.
 
 ```
-var userContext = new { userId = m.userId, roleId = m.roleId }; 
+var userContext = new { userId = m.userId, roleId = m.roleId };
 ```
 
 Create session:
@@ -155,7 +137,7 @@ if (response?.ok && response.status === 200) {
 Server:
 
 ```
-app.MapGet($"/SessionRefresh", (HttpContext context, Alga.sessions.Simple sessionProvider) => { 
+app.MapGet($"/SessionRefresh", (HttpContext context, Alga.sessions.Simple sessionProvider) => {
     var head = Context.Request.Headers["AlgaSession"].ToString();
     var session = sessionProvider.Refresh(head);
     return Results.Text(session);
@@ -163,11 +145,10 @@ app.MapGet($"/SessionRefresh", (HttpContext context, Alga.sessions.Simple sessio
 
 ```
 
-
 6. **Check session**
 
 ```
-Microsoft.Extensions.Primitives.StringValues value = ""; 
+Microsoft.Extensions.Primitives.StringValues value = "";
 context.Request.Headers.TryGetValue(name, out value);
 if (session.Check(value))
     return true;
@@ -176,7 +157,7 @@ if (session.Check(value))
 7. **Delete session**
 
 ```
-app.MapPost($"{UR_Auth}/Signout", (HttpContext context, Alga.sessions.Simple sessionProvider) => { 
+app.MapPost($"{UR_Auth}/Signout", (HttpContext context, Alga.sessions.Simple sessionProvider) => {
     var head = Context.Request.Headers["AlgaSession"].ToString();
     var idF = sessionProvider.Delete(head);
     if (!idF) return Results.BadRequest();
